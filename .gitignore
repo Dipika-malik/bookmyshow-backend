@@ -8,3 +8,10 @@ target/
 *.log
 .env
 .claude/settings.local.json
+DEPLOY_NOTES.local.md
+
+# Personal interview/study notes (kept locally + backed up in ~/bookmyshow-notes)
+INTERVIEW_GUIDE.md
+PROJECT_ANALYSIS.md
+explainAuthService.txt
+interview-prep/
