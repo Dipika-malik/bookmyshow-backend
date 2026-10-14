@@ -68,6 +68,14 @@
             <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
 
+        <!-- ===================== MESSAGING / KAFKA ===================== -->
+
+        <!-- SPRING KAFKA: KafkaTemplate (producer) + @KafkaListener (consumers) -->
+        <dependency>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka</artifactId>
+        </dependency>
+
         <!-- ===================== DATABASE ===================== -->
 
         <!-- H2: In-memory database, kept for quick local testing without MySQL running.

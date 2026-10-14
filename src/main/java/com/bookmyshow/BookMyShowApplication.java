@@ -2,6 +2,7 @@ package com.bookmyshow;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 /**
  * Entry point of the application.
@@ -29,6 +30,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
  *  - Payment  : Payment recording
  */
 @SpringBootApplication
+@EnableScheduling
 public class BookMyShowApplication {
     public static void main(String[] args) {
         SpringApplication.run(BookMyShowApplication.class, args);

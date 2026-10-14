@@ -2,6 +2,7 @@ package com.bookmyshow.service;
 
 import com.bookmyshow.dto.request.BookingRequest;
 import com.bookmyshow.dto.response.BookingResponse;
+import com.bookmyshow.enums.BookingEventType;
 import com.bookmyshow.enums.BookingStatus;
 import com.bookmyshow.enums.PaymentStatus;
 import com.bookmyshow.enums.ShowSeatStatus;
@@ -29,6 +30,7 @@ public class BookingService {
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
     private final SeatHoldService seatHoldService;
+    private final OutboxService outboxService;
     private final ApplicationEventPublisher eventPublisher;
 
     /**
@@ -39,7 +41,8 @@ public class BookingService {
      * 4. Create Booking in PENDING state
      * 5. Mark seats as BOOKED and link to booking
      * 6. Simulate payment (SUCCESS in demo)
-     * 7. Confirm booking and publish BookingConfirmedEvent (handled after commit)
+     * 7. Confirm booking and write a BOOKING_CONFIRMED outbox event (same transaction → relayed to Kafka)
+     * 8. Publish BookingConfirmedEvent in-process (releases Redis holds after commit)
      */
     @Transactional
     public BookingResponse createBooking(Long userId, BookingRequest request) {
@@ -109,6 +112,9 @@ public class BookingService {
         booking.setStatus(BookingStatus.CONFIRMED);
         bookingRepository.save(booking);
 
+        // Committed atomically with the booking; OutboxRelay publishes it to Kafka
+        outboxService.recordBookingEvent(BookingEventType.BOOKING_CONFIRMED, booking, showSeats);
+
         // Listeners run only after this transaction commits (e.g. releasing the Redis holds)
         eventPublisher.publishEvent(new BookingConfirmedEvent(
                 booking.getId(),
@@ -169,6 +175,8 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.CANCELLED);
         bookingRepository.save(booking);
+
+        outboxService.recordBookingEvent(BookingEventType.BOOKING_CANCELLED, booking, seats);
 
         Payment payment = paymentRepository.findByBookingId(bookingId).orElse(null);
         return toResponse(booking, payment, seats);

@@ -85,6 +85,7 @@ docker run -d \
   --network bms \
   -p 80:8082 \
   -e REDIS_HOST=redis \
+  -e KAFKA_ENABLED=false \
   -e DB_URL="jdbc:mysql://<RDS_ENDPOINT>:3306/bookmyshow?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true" \
   -e DB_USERNAME="admin" \
   -e DB_PASSWORD="<your RDS master password>" \
@@ -96,6 +97,10 @@ docker run -d \
 ```
 
 Notes:
+- `KAFKA_ENABLED=false`: a Kafka broker needs ~1 GB of RAM, more than a free-tier instance has.
+  Booking still works; events are written to the `outbox_events` table and will be published
+  as soon as the app is pointed at a broker (`KAFKA_ENABLED=true`, `KAFKA_BOOTSTRAP_SERVERS=...`),
+  e.g. a managed Kafka service or a larger instance.
 - `-p 80:8082` maps the container's port 8082 to the host's port 80, so you can hit the
   API at `http://<EC2_PUBLIC_IP>/...` without a reverse proxy.
 - `--restart unless-stopped` makes the container come back up automatically if the

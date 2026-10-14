@@ -3,7 +3,9 @@ package com.bookmyshow.controller;
 import com.bookmyshow.dto.request.ShowRequest;
 import com.bookmyshow.dto.response.SeatResponse;
 import com.bookmyshow.dto.response.ShowResponse;
+import com.bookmyshow.dto.response.ShowStatsResponse;
 import com.bookmyshow.service.ShowService;
+import com.bookmyshow.service.ShowStatsService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,7 @@ import java.util.List;
 public class ShowController {
 
     private final ShowService showService;
+    private final ShowStatsService showStatsService;
 
     @GetMapping("/{id}")
     public ResponseEntity<ShowResponse> getShowById(@PathVariable Long id) {
@@ -40,6 +43,12 @@ public class ShowController {
     @GetMapping("/{id}/seats")
     public ResponseEntity<List<SeatResponse>> getSeatsForShow(@PathVariable Long id) {
         return ResponseEntity.ok(showService.getSeatsForShow(id));
+    }
+
+    /** Live sales counters, built from Kafka booking events (eventually consistent). */
+    @GetMapping("/{id}/stats")
+    public ResponseEntity<ShowStatsResponse> getShowStats(@PathVariable Long id) {
+        return ResponseEntity.ok(showStatsService.getStats(id));
     }
 
     @PostMapping
