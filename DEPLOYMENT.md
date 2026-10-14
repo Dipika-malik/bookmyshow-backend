@@ -63,14 +63,28 @@ git clone https://github.com/<your-username>/<your-repo>.git
 cd <your-repo>
 ```
 
-## 6. Build and run the container
+## 6. Build and run the containers
+
+Redis runs as a second container on the same Docker network (not exposed to the internet).
+The memory cap keeps it small on a free-tier instance; the default `noeviction` policy is kept on purpose,
+so Redis never silently drops a seat hold to make room for cache entries.
 
 ```bash
+docker network create bms
+
+docker run -d \
+  --name redis \
+  --network bms \
+  --restart unless-stopped \
+  redis:7-alpine --maxmemory 64mb
+
 docker build -t bookmyshow-backend .
 
 docker run -d \
   --name bookmyshow \
+  --network bms \
   -p 80:8082 \
+  -e REDIS_HOST=redis \
   -e DB_URL="jdbc:mysql://<RDS_ENDPOINT>:3306/bookmyshow?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true" \
   -e DB_USERNAME="admin" \
   -e DB_PASSWORD="<your RDS master password>" \

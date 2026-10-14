@@ -44,6 +44,12 @@ public class GlobalExceptionHandler {
         return buildResponse(HttpStatus.CONFLICT, ex.getMessage());
     }
 
+    // 503 - Redis unavailable while placing a seat hold
+    @ExceptionHandler(SeatHoldUnavailableException.class)
+    public ResponseEntity<ErrorResponse> handleSeatHoldUnavailable(SeatHoldUnavailableException ex) {
+        return buildResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+    }
+
     // 400 - @Valid validation failures (e.g., @NotBlank, @Email)
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationErrors(MethodArgumentNotValidException ex) {

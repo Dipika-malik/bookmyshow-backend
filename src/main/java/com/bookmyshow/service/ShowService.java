@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Manages movie show scheduling and seat availability display.
@@ -40,6 +41,7 @@ public class ShowService {
     private final ScreenRepository screenRepository;
     private final SeatRepository seatRepository;
     private final ShowSeatRepository showSeatRepository;
+    private final SeatHoldService seatHoldService;
 
     private static final Map<com.bookmyshow.enums.SeatType, Double> SEAT_MULTIPLIERS = Map.of(
             com.bookmyshow.enums.SeatType.REGULAR, 1.0,
@@ -72,6 +74,9 @@ public class ShowService {
     /**
      * Returns the full seat map for a show — used by the frontend to
      * render an interactive seat picker (colored by availability).
+     *
+     * Seats that are AVAILABLE in MySQL but currently held in Redis by a user
+     * in checkout are shown as LOCKED.
      */
     @Transactional(readOnly = true)
     public List<SeatResponse> getSeatsForShow(Long showId) {
@@ -79,14 +84,20 @@ public class ShowService {
             throw new ResourceNotFoundException("Show", "id", showId);
         }
 
-        return showSeatRepository.findByShowId(showId).stream()
+        List<ShowSeat> showSeats = showSeatRepository.findByShowId(showId);
+        Set<Long> held = seatHoldService.heldSeatIds(showId,
+                showSeats.stream().map(ShowSeat::getId).toList());
+
+        return showSeats.stream()
                 .map(ss -> SeatResponse.builder()
                         .showSeatId(ss.getId())
                         .seatId(ss.getSeat().getId())
                         .seatNumber(ss.getSeat().getSeatNumber())
                         .rowName(ss.getSeat().getRowName())
                         .seatType(ss.getSeat().getSeatType())
-                        .status(ss.getStatus())
+                        .status(ss.getStatus() == ShowSeatStatus.AVAILABLE && held.contains(ss.getId())
+                                ? ShowSeatStatus.LOCKED
+                                : ss.getStatus())
                         .price(ss.getPrice())
                         .build())
                 .toList();

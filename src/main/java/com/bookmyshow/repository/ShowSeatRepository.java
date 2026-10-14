@@ -34,6 +34,9 @@ public interface ShowSeatRepository extends JpaRepository<ShowSeat, Long> {
             @Param("showId") Long showId,
             @Param("seatIds") List<Long> seatIds);
 
+    // Same lookup WITHOUT a lock — used to validate seats before placing a Redis hold
+    List<ShowSeat> findByShowIdAndIdIn(Long showId, List<Long> ids);
+
     // Count available seats for a show (used for availability display)
     long countByShowIdAndStatus(Long showId, ShowSeatStatus status);
 

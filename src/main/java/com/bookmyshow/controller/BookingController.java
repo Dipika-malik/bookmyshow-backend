@@ -1,10 +1,13 @@
 package com.bookmyshow.controller;
 
 import com.bookmyshow.dto.request.BookingRequest;
+import com.bookmyshow.dto.request.SeatHoldRequest;
 import com.bookmyshow.dto.response.BookingResponse;
+import com.bookmyshow.dto.response.SeatHoldResponse;
 import com.bookmyshow.model.User;
 import com.bookmyshow.repository.UserRepository;
 import com.bookmyshow.service.BookingService;
+import com.bookmyshow.service.SeatHoldService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -21,6 +24,7 @@ import java.util.List;
 public class BookingController {
 
     private final BookingService bookingService;
+    private final SeatHoldService seatHoldService;
     private final UserRepository userRepository;
 
     @PostMapping
@@ -30,6 +34,30 @@ public class BookingController {
         Long userId = getUserId(userDetails);
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(bookingService.createBooking(userId, request));
+    }
+
+    /**
+     * Hold seats for the checkout window (default 10 min) before calling POST /api/bookings.
+     * Returns 409 if any seat is booked or held by another user.
+     */
+    @PostMapping("/holds")
+    public ResponseEntity<SeatHoldResponse> holdSeats(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @Valid @RequestBody SeatHoldRequest request) {
+        Long userId = getUserId(userDetails);
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(seatHoldService.holdSeats(userId, request));
+    }
+
+    /** Release the caller's holds early (e.g. user left the checkout page). */
+    @DeleteMapping("/holds")
+    public ResponseEntity<Void> releaseHolds(
+            @AuthenticationPrincipal UserDetails userDetails,
+            @RequestParam Long showId,
+            @RequestParam List<Long> showSeatIds) {
+        Long userId = getUserId(userDetails);
+        seatHoldService.releaseHolds(userId, showId, showSeatIds);
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping

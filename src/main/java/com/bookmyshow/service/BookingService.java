@@ -5,11 +5,13 @@ import com.bookmyshow.dto.response.BookingResponse;
 import com.bookmyshow.enums.BookingStatus;
 import com.bookmyshow.enums.PaymentStatus;
 import com.bookmyshow.enums.ShowSeatStatus;
+import com.bookmyshow.event.BookingConfirmedEvent;
 import com.bookmyshow.exception.ResourceNotFoundException;
 import com.bookmyshow.exception.SeatNotAvailableException;
 import com.bookmyshow.model.*;
 import com.bookmyshow.repository.*;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,15 +28,18 @@ public class BookingService {
     private final ShowSeatRepository showSeatRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
+    private final SeatHoldService seatHoldService;
+    private final ApplicationEventPublisher eventPublisher;
 
     /**
      * Core booking flow:
-     * 1. Lock the requested ShowSeats (PESSIMISTIC_WRITE prevents double-booking)
-     * 2. Validate all seats are AVAILABLE
-     * 3. Create Booking in PENDING state
-     * 4. Mark seats as BOOKED and link to booking
-     * 5. Simulate payment (SUCCESS in demo)
-     * 6. Confirm booking
+     * 1. Reject seats held in Redis by another user (fast check, no DB lock taken)
+     * 2. Lock the requested ShowSeats (PESSIMISTIC_WRITE prevents double-booking)
+     * 3. Validate all seats are AVAILABLE
+     * 4. Create Booking in PENDING state
+     * 5. Mark seats as BOOKED and link to booking
+     * 6. Simulate payment (SUCCESS in demo)
+     * 7. Confirm booking and publish BookingConfirmedEvent (handled after commit)
      */
     @Transactional
     public BookingResponse createBooking(Long userId, BookingRequest request) {
@@ -44,12 +49,15 @@ public class BookingService {
         Show show = showRepository.findById(request.getShowId())
                 .orElseThrow(() -> new ResourceNotFoundException("Show", "id", request.getShowId()));
 
+        // Someone else is mid-checkout on these seats — fail fast before touching DB locks
+        seatHoldService.assertNotHeldByOthers(userId, request.getShowId(), request.getShowSeatIds());
+
         // Acquire row-level locks to prevent concurrent booking of same seats
         List<ShowSeat> showSeats = showSeatRepository.findByShowIdAndIdInWithLock(
                 request.getShowId(), request.getShowSeatIds());
 
         if (showSeats.size() != request.getShowSeatIds().size()) {
-            throw new SeatNotAvailableException("One or more seats not found for this show");
+            throw new SeatNotAvailableException("One or more seats not found for this show", true);
         }
 
         // Validate every seat is still AVAILABLE
@@ -61,7 +69,7 @@ public class BookingService {
             List<String> takenSeats = unavailable.stream()
                     .map(ss -> ss.getSeat().getSeatNumber())
                     .toList();
-            throw new SeatNotAvailableException("Seats already booked: " + takenSeats);
+            throw new SeatNotAvailableException("Seats already booked: " + takenSeats, true);
         }
 
         double totalAmount = showSeats.stream().mapToDouble(ShowSeat::getPrice).sum();
@@ -100,6 +108,15 @@ public class BookingService {
 
         booking.setStatus(BookingStatus.CONFIRMED);
         bookingRepository.save(booking);
+
+        // Listeners run only after this transaction commits (e.g. releasing the Redis holds)
+        eventPublisher.publishEvent(new BookingConfirmedEvent(
+                booking.getId(),
+                booking.getBookingReference(),
+                userId,
+                show.getId(),
+                showSeats.stream().map(ShowSeat::getId).toList(),
+                totalAmount));
 
         return toResponse(booking, payment, showSeats);
     }
